@@ -8,8 +8,11 @@
 // Delegate for broadcasting health and shield changes
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnHealthChanged, float, CurrentHealth, float, CurrentShield);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnShieldDepleted);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnShieldRechargeComplete);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTakeDamage, float, CurrentHealth, float, CurrentShield);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOvershieldActivated, bool, bIsCharging);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnShieldRechargeStarted, float, RechargeDuration);
+
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class SYSTEMLINK_API UHealthComponent : public UActorComponent
@@ -64,7 +67,7 @@ protected:
     FTimerHandle ShieldRechargeTimer;
     FTimerHandle OvershieldChargeTimer;
 
-    /** Functions */
+    /** OnRep Functions */
     UFUNCTION()
     void OnRep_IsRecharging();
     
@@ -76,6 +79,10 @@ protected:
 
     UFUNCTION()
     void OnRep_Overshield();
+
+
+    UFUNCTION(Client, Reliable)
+    void TakeDamage();
 
     void StartShieldRecharge();
     void RegenerateShield();
@@ -89,8 +96,15 @@ protected:
 
 public:
     /** Events for UI and effects */
+
+    UFUNCTION(NetMulticast, Reliable)
+    void MulticastOnShieldDepleted();
+    
     UPROPERTY(BlueprintAssignable, Category = "Health")
     FOnHealthChanged OnHealthChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Health")
+    FOnTakeDamage OnTakeDamage;
 
     UPROPERTY(BlueprintAssignable, Category = "Health")
     FOnShieldDepleted OnShieldDepleted;
@@ -100,6 +114,9 @@ public:
 
     UPROPERTY(BlueprintAssignable, Category = "Health")
     FOnShieldRechargeStarted OnShieldRechargeStarted;
+
+    UPROPERTY(BlueprintAssignable, Category = "Health")
+    FOnShieldRechargeComplete OnShieldRechargeComplete;
 
     /** Apply damage */
     UFUNCTION(BlueprintCallable, Category = "Health")
@@ -117,6 +134,12 @@ public:
     float GetShield() const { return Shield; }
 
     UFUNCTION(BlueprintPure, Category = "Health")
+    float GetHealthPercent() const { return FMath::Clamp(Health / MaxHealth, 0.0f, 1.0f); }
+
+    UFUNCTION(BlueprintPure, Category = "Health")
+    float GetShieldPercent() const { return FMath::Clamp(Shield / MaxShield, 0.0f, 1.0f); }
+
+    UFUNCTION(BlueprintPure, Category = "Health")
     bool HasOvershield() const { return bHasOvershield; }
     
     UFUNCTION(BlueprintCallable, Category = "Health")
@@ -125,5 +148,6 @@ public:
     virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:
-    bool bDamageEvent = false; // True only when ApplyDamage() is active
+    
+
 };

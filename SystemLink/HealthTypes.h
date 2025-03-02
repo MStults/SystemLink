@@ -4,7 +4,7 @@
 #include "HealthTypes.generated.h"
 
 USTRUCT(BlueprintType) // 🔥 This makes it work in Blueprints
-struct FHealthState
+struct FHealthChangedInfo
 {
 	GENERATED_BODY() // 🔥 This allows Unreal to serialize it properly
 
@@ -20,18 +20,18 @@ struct FHealthState
 	UPROPERTY(BlueprintReadOnly)
 	bool bShieldDamaged = false;
 
-	UPROPERTY(BlueprintReadOnly)
-	bool bIsRecharging = false;
-
-	UPROPERTY(BlueprintReadOnly)
-	bool bHasOvershield = false;
-
-	UPROPERTY(BlueprintReadOnly)
-	float MaxHealth = 100.f;
-
-	UPROPERTY(BlueprintReadOnly)
-	float MaxShield = 50.f;
-
-	UPROPERTY(BlueprintReadOnly)
-	float MaxOvershield = 100.f;
+	// UPROPERTY(BlueprintReadOnly)
+	// bool bIsRecharging = false;
+	//
+	// UPROPERTY(BlueprintReadOnly)
+	// bool bHasOvershield = false;
+	//
+	// UPROPERTY(BlueprintReadOnly)
+	// float MaxHealth = 100.f;
+	//
+	// UPROPERTY(BlueprintReadOnly)
+	// float MaxShield = 50.f;
+	//
+	// UPROPERTY(BlueprintReadOnly)
+	// float MaxOvershield = 100.f;
 };
