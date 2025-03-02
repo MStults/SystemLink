@@ -67,7 +67,7 @@ void UHealthComponent::ApplyDamage(const float DamageAmount)
 		{
 			Health = FMath::Clamp(Health + Shield, 0.0f, MaxHealth);
 			Shield = 0;
-			OnShieldDepleted.Broadcast();
+			MulticastOnShieldDepleted();
 		}
 	}
 	else
@@ -75,8 +75,7 @@ void UHealthComponent::ApplyDamage(const float DamageAmount)
 		Health = FMath::Clamp(Health - DamageAmount, 0.0f, MaxHealth);
 	}
 
-	OnRep_Health();
-	OnRep_Shield();
+	TakeDamage(); // Call local damage event	
 
 	// Restart shield recharge after delay
 	GetWorld()->GetTimerManager().SetTimer(
@@ -108,7 +107,6 @@ void UHealthComponent::StartOvershieldCharge()
 	if (Shield < MaxOvershield)
 	{
 		Shield = FMath::Clamp(Shield + (OvershieldChargeRate * 0.1f), 0.0f, MaxOvershield);
-		OnRep_Shield();
 	}
 	else
 	{
@@ -124,11 +122,17 @@ void UHealthComponent::FinishOvershieldCharge()
 	OnRep_Overshield();
 }
 
+void UHealthComponent::MulticastOnShieldDepleted_Implementation()
+{
+	OnShieldDepleted.Broadcast();
+}
+
 
 void UHealthComponent::ServerApplyDamage_Implementation(const float DamageAmount)
 {
 	ApplyDamage(DamageAmount);
 }
+
 
 void UHealthComponent::StartShieldRecharge()
 {
@@ -157,9 +161,6 @@ void UHealthComponent::RegenerateShield()
 	if (Shield < MaxShield)
 	{
 		Shield = FMath::Clamp(Shield + (ShieldRechargeRate * 0.1f), 0.0f, MaxShield);
-
-		// 🔥 Force replication update to the client
-		OnRep_Shield();
 	}
 	else
 	{
@@ -182,15 +183,24 @@ void UHealthComponent::OnRep_IsRecharging()
 	{
 		const float TimeToFullRecharge = (MaxShield - Shield) / ShieldRechargeRate;
 		OnShieldRechargeStarted.Broadcast(TimeToFullRecharge);
+	} else
+	{
+		OnShieldRechargeComplete.Broadcast();
 	}
 }
 
 void UHealthComponent::OnRep_Shield()
 {
+	if (bIsRecharging) return; // Ignore if recharging
 	OnHealthChanged.Broadcast(Health, Shield);
 }
 
 void UHealthComponent::OnRep_Overshield()
 {
 	OnOvershieldActivated.Broadcast(bHasOvershield);
+}
+
+void UHealthComponent::TakeDamage_Implementation()
+{	
+	OnTakeDamage.Broadcast(Health, Shield);
 }
