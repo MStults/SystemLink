@@ -75,7 +75,7 @@ void UHealthComponent::ApplyDamage(const float DamageAmount)
 		Health = FMath::Clamp(Health - DamageAmount, 0.0f, MaxHealth);
 	}
 
-	TakeDamage(); // Call local damage event	
+	TakeDamage(Health, Shield); // Call local damage event	
 
 	// Restart shield recharge after delay
 	GetWorld()->GetTimerManager().SetTimer(
@@ -200,7 +200,19 @@ void UHealthComponent::OnRep_Overshield()
 	OnOvershieldActivated.Broadcast(bHasOvershield);
 }
 
-void UHealthComponent::TakeDamage_Implementation()
-{	
+void UHealthComponent::TakeDamage_Implementation(const float NewHealth, const float NewShield)
+{
+	
+	// Assign the new values to the class variables
+	Health = NewHealth;
+	Shield = NewShield;
+
+	// Broadcast event for UI updates
+	OnHealthChanged.Broadcast(Health, Shield);
 	OnTakeDamage.Broadcast(Health, Shield);
 }
+
+// void UHealthComponent::TakeDamage_Implementation()
+// {	
+// 	OnTakeDamage.Broadcast(Health, Shield);
+// }

@@ -80,9 +80,8 @@ protected:
     UFUNCTION()
     void OnRep_Overshield();
 
-
     UFUNCTION(Client, Reliable)
-    void TakeDamage();
+    void TakeDamage(float NewHealth, float NewShield);
 
     void StartShieldRecharge();
     void RegenerateShield();
