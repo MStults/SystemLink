@@ -127,12 +127,10 @@ void UHealthComponent::MulticastOnShieldDepleted_Implementation()
 	OnShieldDepleted.Broadcast();
 }
 
-
 void UHealthComponent::ServerApplyDamage_Implementation(const float DamageAmount)
 {
 	ApplyDamage(DamageAmount);
 }
-
 
 void UHealthComponent::StartShieldRecharge()
 {
@@ -169,7 +167,7 @@ void UHealthComponent::RegenerateShield()
 
 		OnRep_Shield(); // Final shield update
 		OnRep_IsRecharging();
-	}
+	}      
 }
 
 void UHealthComponent::OnRep_Health()
@@ -201,8 +199,7 @@ void UHealthComponent::OnRep_Overshield()
 }
 
 void UHealthComponent::TakeDamage_Implementation(const float NewHealth, const float NewShield)
-{
-	
+{	
 	// Assign the new values to the class variables
 	Health = NewHealth;
 	Shield = NewShield;
@@ -212,7 +209,3 @@ void UHealthComponent::TakeDamage_Implementation(const float NewHealth, const fl
 	OnTakeDamage.Broadcast(Health, Shield);
 }
 
-// void UHealthComponent::TakeDamage_Implementation()
-// {	
-// 	OnTakeDamage.Broadcast(Health, Shield);
-// }
