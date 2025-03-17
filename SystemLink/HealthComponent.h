@@ -90,12 +90,10 @@ protected:
     void FinishOvershieldCharge();
 
     /** Server function to apply damage */
-    UFUNCTION(Server, Reliable)
+    UFUNCTION(Server, Reliable)       
     void ServerApplyDamage(float DamageAmount);
 
 public:
-    /** Events for UI and effects */
-
     UFUNCTION(NetMulticast, Reliable)
     void MulticastOnShieldDepleted();
     
