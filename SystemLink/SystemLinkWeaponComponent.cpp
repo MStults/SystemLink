@@ -3,6 +3,14 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
 
+USystemLinkWeaponComponent::USystemLinkWeaponComponent():
+	ImpactDecalMaterial(nullptr),
+	ImpactNiagaraEffect(nullptr)
+{
+	PrimaryComponentTick.bCanEverTick = true; // Needed for weapon animations?
+	SwayRotation = FRotator::ZeroRotator;
+}
+
 void USystemLinkWeaponComponent::SpawnImpactDecal(const FHitResult& HitResult) const
 {
 	if (!ImpactDecalMaterial) return;
@@ -10,10 +18,10 @@ void USystemLinkWeaponComponent::SpawnImpactDecal(const FHitResult& HitResult) c
 	UGameplayStatics::SpawnDecalAtLocation(
 		GetWorld(),
 		ImpactDecalMaterial,
-		FVector(10.0f, 10.0f, 1.0f),   // Decal Size
-		HitResult.ImpactPoint,         // Spawn Location
+		FVector(10.0f, 10.0f, 1.0f), // Decal Size
+		HitResult.ImpactPoint, // Spawn Location
 		HitResult.ImpactNormal.Rotation(), // Rotation based on surface
-		10.0f                           // Lifespan in seconds
+		10.0f // Lifespan in seconds
 	);
 }
 
@@ -60,11 +68,11 @@ void USystemLinkWeaponComponent::GenerateBulletSpread(
 
 
 bool USystemLinkWeaponComponent::GetShotStartAndEnd(
-	const FVector& CameraLocation, 
+	const FVector& CameraLocation,
 	const FVector& CameraForwardVector,
-	const FName SocketName, 
-	const float TraceDistance, 
-	FVector& OutStartLocation, 
+	const FName SocketName,
+	const float TraceDistance,
+	FVector& OutStartLocation,
 	FVector& OutEndLocation) const
 {
 	// Compute the end point for the camera trace
@@ -99,4 +107,27 @@ bool USystemLinkWeaponComponent::GetShotStartAndEnd(
 	// Fallback: If the socket does not exist, use the camera location as the start
 	OutStartLocation = CameraLocation;
 	return bHit;
+}
+
+FRotator USystemLinkWeaponComponent::CalculateWeaponSway(const float LookX, const float LookY, const float DeltaTime)
+{
+	FRotator TargetRotation;
+	TargetRotation.Pitch = FMath::Clamp(LookY * -SwaySettings.SwayStrength, -SwaySettings.MaxPitch,
+	                                    SwaySettings.MaxPitch);
+	TargetRotation.Yaw = FMath::Clamp(LookX * SwaySettings.SwayStrength, -SwaySettings.MaxYaw, SwaySettings.MaxYaw);
+
+	// Add procedural breathing roll
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float BreathingRoll = FMath::Sin(Time * 1.5f) * 2.0f;
+
+	// Add roll based on horizontal movement
+	const float MovementRoll = FMath::Clamp(LookX * -SwaySettings.SwayStrength * 0.5f, -5.0f, 5.0f);
+
+	// Combine both effects
+	TargetRotation.Roll = BreathingRoll + MovementRoll;
+
+	// Smoothly interpolate towards target sway
+	SwayRotation = FMath::RInterpTo(SwayRotation, TargetRotation, DeltaTime, SwaySettings.InterpSpeed);
+
+	return SwayRotation;
 }
