@@ -67,7 +67,8 @@ public:
 
 	/** Calculates the sway rotation based on input */
 	UFUNCTION(BlueprintCallable, Category = "Weapon Sway")
-	FRotator CalculateWeaponSway(float LookX, float LookY, float DeltaTime);
+	FRotator CalculateWeaponSway(float LookX, float LookY, float DeltaTime, float PlayerSpeed);
+
 
 protected:
 	/** Stores the last frame’s sway rotation */

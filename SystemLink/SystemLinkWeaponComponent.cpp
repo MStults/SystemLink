@@ -109,8 +109,10 @@ bool USystemLinkWeaponComponent::GetShotStartAndEnd(
 	return bHit;
 }
 
-FRotator USystemLinkWeaponComponent::CalculateWeaponSway(const float LookX, const float LookY, const float DeltaTime)
+FRotator USystemLinkWeaponComponent::CalculateWeaponSway(const float LookX, const float LookY, const float DeltaTime,
+                                                         const float PlayerSpeed)
 {
+	// Calculate target sway rotation from mouse/controller input
 	FRotator TargetRotation;
 	TargetRotation.Pitch = FMath::Clamp(LookY * -SwaySettings.SwayStrength, -SwaySettings.MaxPitch,
 	                                    SwaySettings.MaxPitch);
@@ -118,13 +120,32 @@ FRotator USystemLinkWeaponComponent::CalculateWeaponSway(const float LookX, cons
 
 	// Add procedural breathing roll
 	const float Time = GetWorld()->GetTimeSeconds();
-	const float BreathingRoll = FMath::Sin(Time * 1.5f) * 2.0f;
+	const float BreathingRoll = FMath::Sin(Time * SwaySettings.BreathingRollSpeed) * SwaySettings.
+		BreathingRollIntensity;
 
 	// Add roll based on horizontal movement
-	const float MovementRoll = FMath::Clamp(LookX * -SwaySettings.SwayStrength * 0.5f, -5.0f, 5.0f);
+	const float MovementRoll = LookX * -SwaySettings.SwayStrength * SwaySettings.MovementRollMultiplier;
+	
+	// Combine roll effects
+	TargetRotation.Roll = FMath::Clamp(BreathingRoll + MovementRoll, -SwaySettings.MaxRoll, SwaySettings.MaxRoll);
 
-	// Combine both effects
-	TargetRotation.Roll = BreathingRoll + MovementRoll;
+	// 🌟 Apply Weapon Bobbing Effect 🌟
+	if (const float NormalizedSpeed = FMath::Clamp(PlayerSpeed / 600.0f, 0.0f, 2.0f); NormalizedSpeed > 0.1f)
+	// Only apply bobbing if the player is moving
+	{
+		const float BobbingOffset = FMath::Sin(Time * SwaySettings.BobbingSpeed * NormalizedSpeed) * SwaySettings.
+			BobbingAmplitude * NormalizedSpeed;
+		
+		const float BobbingSideOffset = FMath::Cos(Time * SwaySettings.BobbingSpeed * NormalizedSpeed * 0.5f) *
+			SwaySettings.BobbingHorizontalAmplitude * NormalizedSpeed;
+
+		// Apply bobbing offsets to Pitch and Yaw for better visual feel
+		TargetRotation.Pitch += BobbingOffset;
+		TargetRotation.Yaw += BobbingSideOffset;
+	}
+
+	// Apply Sway Multiplier (Now applied as a final scaling factor)
+	TargetRotation *= SwaySettings.SwayMultiplier;
 
 	// Smoothly interpolate towards target sway
 	SwayRotation = FMath::RInterpTo(SwayRotation, TargetRotation, DeltaTime, SwaySettings.InterpSpeed);
