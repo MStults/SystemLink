@@ -3,6 +3,14 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
 
+USystemLinkWeaponComponent::USystemLinkWeaponComponent():
+	ImpactDecalMaterial(nullptr),
+	ImpactNiagaraEffect(nullptr)
+{
+	PrimaryComponentTick.bCanEverTick = true; // Needed for weapon animations?
+	SwayRotation = FRotator::ZeroRotator;
+}
+
 void USystemLinkWeaponComponent::SpawnImpactDecal(const FHitResult& HitResult) const
 {
 	if (!ImpactDecalMaterial) return;
@@ -10,10 +18,10 @@ void USystemLinkWeaponComponent::SpawnImpactDecal(const FHitResult& HitResult) c
 	UGameplayStatics::SpawnDecalAtLocation(
 		GetWorld(),
 		ImpactDecalMaterial,
-		FVector(10.0f, 10.0f, 1.0f),   // Decal Size
-		HitResult.ImpactPoint,         // Spawn Location
+		FVector(10.0f, 10.0f, 1.0f), // Decal Size
+		HitResult.ImpactPoint, // Spawn Location
 		HitResult.ImpactNormal.Rotation(), // Rotation based on surface
-		10.0f                           // Lifespan in seconds
+		10.0f // Lifespan in seconds
 	);
 }
 
@@ -60,11 +68,11 @@ void USystemLinkWeaponComponent::GenerateBulletSpread(
 
 
 bool USystemLinkWeaponComponent::GetShotStartAndEnd(
-	const FVector& CameraLocation, 
+	const FVector& CameraLocation,
 	const FVector& CameraForwardVector,
-	const FName SocketName, 
-	const float TraceDistance, 
-	FVector& OutStartLocation, 
+	const FName SocketName,
+	const float TraceDistance,
+	FVector& OutStartLocation,
 	FVector& OutEndLocation) const
 {
 	// Compute the end point for the camera trace
@@ -99,4 +107,48 @@ bool USystemLinkWeaponComponent::GetShotStartAndEnd(
 	// Fallback: If the socket does not exist, use the camera location as the start
 	OutStartLocation = CameraLocation;
 	return bHit;
+}
+
+FRotator USystemLinkWeaponComponent::CalculateWeaponSway(const float LookX, const float LookY, const float DeltaTime,
+                                                         const float PlayerSpeed)
+{
+	// Calculate target sway rotation from mouse/controller input
+	FRotator TargetRotation;
+	TargetRotation.Pitch = FMath::Clamp(LookY * -SwaySettings.SwayStrength, -SwaySettings.MaxPitch,
+	                                    SwaySettings.MaxPitch);
+	TargetRotation.Yaw = FMath::Clamp(LookX * SwaySettings.SwayStrength, -SwaySettings.MaxYaw, SwaySettings.MaxYaw);
+
+	// Add procedural breathing roll
+	const float Time = GetWorld()->GetTimeSeconds();
+	const float BreathingRoll = FMath::Sin(Time * SwaySettings.BreathingRollSpeed) * SwaySettings.
+		BreathingRollIntensity;
+
+	// Add roll based on horizontal movement
+	const float MovementRoll = LookX * -SwaySettings.SwayStrength * SwaySettings.MovementRollMultiplier;
+	
+	// Combine roll effects
+	TargetRotation.Roll = FMath::Clamp(BreathingRoll + MovementRoll, -SwaySettings.MaxRoll, SwaySettings.MaxRoll);
+
+	// 🌟 Apply Weapon Bobbing Effect 🌟
+	if (const float NormalizedSpeed = FMath::Clamp(PlayerSpeed / 600.0f, 0.0f, 2.0f); NormalizedSpeed > 0.1f)
+	// Only apply bobbing if the player is moving
+	{
+		const float BobbingOffset = FMath::Sin(Time * SwaySettings.BobbingSpeed * NormalizedSpeed) * SwaySettings.
+			BobbingAmplitude * NormalizedSpeed;
+		
+		const float BobbingSideOffset = FMath::Cos(Time * SwaySettings.BobbingSpeed * NormalizedSpeed * 0.5f) *
+			SwaySettings.BobbingHorizontalAmplitude * NormalizedSpeed;
+
+		// Apply bobbing offsets to Pitch and Yaw for better visual feel
+		TargetRotation.Pitch += BobbingOffset;
+		TargetRotation.Yaw += BobbingSideOffset;
+	}
+
+	// Apply Sway Multiplier (Now applied as a final scaling factor)
+	TargetRotation *= SwaySettings.SwayMultiplier;
+
+	// Smoothly interpolate towards target sway
+	SwayRotation = FMath::RInterpTo(SwayRotation, TargetRotation, DeltaTime, SwaySettings.InterpSpeed);
+
+	return SwayRotation;
 }

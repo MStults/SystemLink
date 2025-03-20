@@ -4,13 +4,16 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "WeaponSwaySettings.h"
 #include "SystemLinkWeaponComponent.generated.h"
 
 UCLASS()
 class SYSTEMLINK_API USystemLinkWeaponComponent : public USkeletalMeshComponent
 {
 	GENERATED_BODY()
-
+public:
+	USystemLinkWeaponComponent();
+	
 public:
 	// Allows Blueprint to call these functions
 	UFUNCTION(BlueprintCallable, Category = "Weapon|Effects",  meta = (CallInEditor = "true"))
@@ -58,7 +61,19 @@ public:
 		FVector& OutEndLocation
 	) const;
 
+	/** Sway settings for this weapon (editable in Blueprints) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Sway")
+	FWeaponSwaySettings SwaySettings;
+
+	/** Calculates the sway rotation based on input */
+	UFUNCTION(BlueprintCallable, Category = "Weapon Sway")
+	FRotator CalculateWeaponSway(float LookX, float LookY, float DeltaTime, float PlayerSpeed);
+
+
 protected:
+	/** Stores the last frame’s sway rotation */
+	FRotator SwayRotation;
+	
 	// Decal material (assign this in Blueprint)
 	UPROPERTY(EditDefaultsOnly, Category = "SystemLink|Shooting")
 	UMaterialInterface* ImpactDecalMaterial;
