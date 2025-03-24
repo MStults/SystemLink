@@ -69,7 +69,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Weapon Sway")
 	FRotator CalculateWeaponSway(float LookX, float LookY, float DeltaTime, float PlayerSpeed);
 
-
+	// Function to check if the weapon is blocked by a wall
+	UFUNCTION(BlueprintCallable, Category = "SystemLink|Weapon")
+	bool CheckWeaponBlocking(const FVector& CameraLocation, const FVector& CameraForwardVector, const bool bDebug = false);
+	
 protected:
 	/** Stores the last frame’s sway rotation */
 	FRotator SwayRotation;
@@ -81,4 +84,14 @@ protected:
 	// Default particle effect for impacts (assign in Blueprint)
 	UPROPERTY(EditDefaultsOnly, Category = "SystemLink|Shooting")
 	UNiagaraSystem* ImpactNiagaraEffect;
+
+	// The maximum distance at which the weapon will perform a blocking trace check to detect nearby obstacles.
+	// If an obstacle is detected within this range, the weapon will be considered "blocked," triggering animations
+	// or positional adjustments to prevent clipping through walls or objects. This value is adjustable in Blueprints.
+	UPROPERTY(EditDefaultsOnly, Category = "SystemLink|Shooting")
+	float WeaponBLockingTraceDistance = 30;
+
+private:
+	// Tracks if the weapon is blocked
+	bool bIsWeaponBlocked;
 };
