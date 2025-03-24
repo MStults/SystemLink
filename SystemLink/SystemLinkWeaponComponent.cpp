@@ -152,3 +152,35 @@ FRotator USystemLinkWeaponComponent::CalculateWeaponSway(const float LookX, cons
 
 	return SwayRotation;
 }
+
+bool USystemLinkWeaponComponent::CheckWeaponBlocking(const FVector& CameraLocation, const FVector& CameraForwardVector, const bool bDebug)
+{
+	const FVector TraceStart = CameraLocation;
+	const FVector TraceEnd = TraceStart + (CameraForwardVector * WeaponBLockingTraceDistance);
+	constexpr float SphereRadius = 15.0f; // Adjust as needed
+
+	FCollisionQueryParams TraceParams(FName(TEXT("WeaponBlockTrace")), true, GetOwner());
+	TraceParams.bReturnPhysicalMaterial = false;
+	TraceParams.AddIgnoredActor(GetOwner());
+
+	FHitResult HitResult;
+	const bool bHit = GetWorld()->SweepSingleByChannel(
+		HitResult,
+		TraceStart,
+		TraceEnd,
+		FQuat::Identity,
+		ECC_Visibility,
+		FCollisionShape::MakeSphere(SphereRadius),
+		TraceParams
+	);
+
+#if WITH_EDITOR
+	if (bDebug)
+	{
+		DrawDebugSphere(GetWorld(), TraceEnd, SphereRadius, 12, bHit ? FColor::Red : FColor::Green, false, 1.0f);
+	}
+#endif
+
+	bIsWeaponBlocked = bHit;
+	return bIsWeaponBlocked;
+}
