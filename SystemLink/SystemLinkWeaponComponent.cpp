@@ -5,7 +5,7 @@
 
 USystemLinkWeaponComponent::USystemLinkWeaponComponent():
 	ImpactDecalMaterial(nullptr),
-	ImpactNiagaraEffect(nullptr)
+	ImpactNiagaraEffect(nullptr), bIsWeaponBlocked(false)
 {
 	PrimaryComponentTick.bCanEverTick = true; // Needed for weapon animations?
 	SwayRotation = FRotator::ZeroRotator;
@@ -65,7 +65,6 @@ void USystemLinkWeaponComponent::GenerateBulletSpread(
 		OutPelletEndPoints.Add(PelletEnd);
 	}
 }
-
 
 bool USystemLinkWeaponComponent::GetShotStartAndEnd(
 	const FVector& CameraLocation,
