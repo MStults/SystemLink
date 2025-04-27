@@ -2,96 +2,154 @@
 
 #include "CoreMinimal.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "NiagaraFunctionLibrary.h"
-#include "NiagaraSystem.h"
-#include "WeaponSwaySettings.h"
+#include "WeaponTypes.h"
 #include "SystemLinkWeaponComponent.generated.h"
 
 UCLASS()
 class SYSTEMLINK_API USystemLinkWeaponComponent : public USkeletalMeshComponent
 {
 	GENERATED_BODY()
+
+	// Timer handle for shot validation
+	FTimerHandle ShotValidationTimerHandle;
+	
 public:
 	USystemLinkWeaponComponent();
-	
-public:
-	// Allows Blueprint to call these functions
-	UFUNCTION(BlueprintCallable, Category = "Weapon|Effects",  meta = (CallInEditor = "true"))
-	void SpawnImpactDecal(const FHitResult& HitResult) const;
 
-	UFUNCTION(BlueprintCallable, Category = "Weapon|Effects", meta = (CallInEditor = "true"))
-	void SpawnImpactEffect(const FHitResult& HitResult) const;
-	
-	/**
-	 * Generates end points for a bullet spread using a cone angle.
-	 *
-	 * @param StartLocation The origin of the blast.
-	 * @param EndLocation The base end location before applying spread.
-	 * @param NumPellets Number of pellets/bullets in the blast.
-	 * @param ConeAngle The half-angle of the spread cone in degrees.
-	 * @param OutPelletEndPoints Output array of calculated end points.
-	 */
-	UFUNCTION(BlueprintCallable, Category = "SystemLink|Shooting")
-	static void GenerateBulletSpread(
-		const FVector& StartLocation,
-		const FVector& EndLocation,
-		int32 NumPellets,
-		float ConeAngle,
-		TArray<FVector>& OutPelletEndPoints
-	);
+	// ============================
+	// === Weapon Multiplayer ===
+	// ============================
 
-	/**
-	 * Calculates the start and end locations for a weapon trace.
-	 *
-	 * @param CameraLocation The world position of the player's camera.
-	 * @param CameraForwardVector The forward vector of the camera (direction the player is looking).
-	 * @param SocketName The name of the socket on the weapon (e.g., "Muzzle").
-	 * @param TraceDistance The max range for the shot.
-	 * @param OutStartLocation (Output) The calculated start location of the shot (weapon muzzle position).
-	 * @param OutEndLocation (Output) The calculated end location of the shot (hit target or max range).
-	 * @return True if the trace hit something, false if no hit.
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Details")
+	int32 NumProjectiles = 1;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Details")
+	float ConeAngle = 2.5f;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Details")
+	float BaseDamage = 20.0;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Details")
+	float TraceDistance = 25000.0f;
+	
+	/** Editable sway settings exposed to Blueprint */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Details")
+	FWeaponSwaySettings SwaySettings;
+
+	/** Maximum distance for checking if the weapon is blocked */
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon Details")
+	float WeaponBlockingTraceDistance = 30.f;
+
+	/** Internal state tracking whether the weapon is currently blocked */
+	UPROPERTY(VisibleAnywhere, Category = "Weapon Details")
+	bool bIsWeaponBlocked;
+
+	/** Tracks the history of fired shots for validation */
+	UPROPERTY(BlueprintReadOnly, Category = "Weapon Details")
+	TArray<FShotInfo> ShotHistory;
+
+	/** 
+	 * Number of locally predicted shots to accumulate before sending validation to the server. 
+	 * Used to control how frequently the client sends shot history.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "SystemLink|Shooting")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Details")
+	int32 MaxUnvalidatedShots = 1; // Default — adjust per weapon
+
+	/** 
+	 * The maximum time (in seconds) to wait before sending unvalidated shots to the server for reconciliation.
+	 * 
+	 * This timer ensures that even if the MaxUnvalidatedShots threshold is not reached (e.g., during slow firing),
+	 * the client will still send its predicted shots after this interval. 
+	 * 
+	 * Recommended to keep this value short (e.g., 0.1 to 0.2 seconds) to maintain responsiveness 
+	 * and minimize desync in multiplayer.
+	 * 
+	 * Used in conjunction with MaxUnvalidatedShots to trigger ServerValidateShots().
+	 */
+	UPROPERTY(EditDefaultsOnly, Category = "Weapon Details")
+	float ShotValidationInterval = 0.15f;
+
+	/** 
+	 * Sweep radius used for fallback hit validation on the server.
+	 * A higher value gives more forgiveness for fast movement, latency, or wide projectiles (like shotgun pellets).
+	 * Set to 0 for strict line traces only.
+	 */
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon Details")
+	float HitValidationSweepRadius = 15.f;
+
+	/** Stores the last calculated sway rotation */
+	UPROPERTY(VisibleAnywhere, Category = "Weapon Details")
+	FRotator SwayRotation;
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Weapon|Shooting") 
+	void OnProjectileHitPredicted(const TArray<FHitResult>& Hits);
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Weapon|Shooting")
+	void OnProjectileHitConfirmed(const TArray<FConfirmedProjectileHit>& ConfirmedHits);
+
+	UFUNCTION(BlueprintCallable, Category = "Weapon|Shooting")
+	static TArray<FHitResult> ExtractHitResults(const TArray<FConfirmedProjectileHit>& ConfirmedHits);
+
+	/** Client-side local fire prediction */
+	UFUNCTION(BlueprintNativeEvent, BlueprintCallable, Category = "Weapon|Shooting")
+	void LocalFire(const FVector& StartLocation, const FVector& EndLocation);
+	virtual void LocalFire_Implementation(const FVector& StartLocation,	const FVector& EndLocation);
+
+	/** Server-side validation of client-reported shots */
+	UFUNCTION(Server, Reliable, WithValidation, BlueprintCallable, Category = "Weapon|Multiplayer")
+	void ServerValidateShots(const TArray<FShotInfo>& Shots);
+
+	/** Sends accumulated shot data for server validation */
+	UFUNCTION(BlueprintCallable, Category = "Weapon|Multiplayer")
+	void SendShotValidation();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void MulticastPlayFireFX();
+	void MulticastPlayFireFX_Implementation();
+
+	/** Called when fire FX should be played on all clients (muzzle flash, sound, etc.) */
+	UFUNCTION(BlueprintImplementableEvent, Category = "Weapon|Shooting")
+	void OnMulticastPlayFireFX();
+
+	// =====================
+	// === Weapon Sway ===
+	// =====================
+
+	/** Calculates sway based on player input */
+	UFUNCTION(BlueprintCallable, Category = "Weapon|Sway")
+	FRotator CalculateWeaponSway(float LookX, float LookY, float DeltaTime, float PlayerSpeed);
+
+	// ========================
+	// === Weapon Shooting ===
+	// ========================
+
+	/** Calculates start/end locations for a shot trace */
+	UFUNCTION(BlueprintCallable, Category = "Weapon|Shooting")
 	bool GetShotStartAndEnd(
 		const FVector& CameraLocation, 
 		const FVector& CameraForwardVector, 
 		FName SocketName, 
-		float TraceDistance, 
 		FVector& OutStartLocation, 
 		FVector& OutEndLocation
 	) const;
 
-	/** Sway settings for this weapon (editable in Blueprints) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Sway")
-	FWeaponSwaySettings SwaySettings;
+	/** Generates multiple spread shot endpoints */
+	UFUNCTION(BlueprintCallable, Category = "Weapon|Shooting")
+	void GenerateBulletSpread(
+		const FVector& StartLocation,
+		const FVector& EndLocation,
+		TArray<FVector>& OutProjectilesEndPoints
+	);
 
-	/** Calculates the sway rotation based on input */
-	UFUNCTION(BlueprintCallable, Category = "Weapon Sway")
-	FRotator CalculateWeaponSway(float LookX, float LookY, float DeltaTime, float PlayerSpeed);
+	// ============================
+	// === Weapon Blocking ===
+	// ============================
 
-	// Function to check if the weapon is blocked by a wall
-	UFUNCTION(BlueprintCallable, Category = "SystemLink|Weapon")
-	bool CheckWeaponBlocking(const FVector& CameraLocation, const FVector& CameraForwardVector, const bool bDebug = false);
-	
-protected:
-	/** Stores the last frame’s sway rotation */
-	FRotator SwayRotation;
-	
-	// Decal material (assign this in Blueprint)
-	UPROPERTY(EditDefaultsOnly, Category = "SystemLink|Shooting")
-	UMaterialInterface* ImpactDecalMaterial;
+	/** Checks if the weapon is blocked by environment geometry */
+	UFUNCTION(BlueprintCallable, Category = "Weapon|Blocking")
+	bool CheckWeaponBlocking(const FVector& CameraLocation, const FVector& CameraForwardVector, bool bDebug = false);
 
-	// Default particle effect for impacts (assign in Blueprint)
-	UPROPERTY(EditDefaultsOnly, Category = "SystemLink|Shooting")
-	UNiagaraSystem* ImpactNiagaraEffect;
 
-	// The maximum distance at which the weapon will perform a blocking trace check to detect nearby obstacles.
-	// If an obstacle is detected within this range, the weapon will be considered "blocked," triggering animations
-	// or positional adjustments to prevent clipping through walls or objects. This value is adjustable in Blueprints.
-	UPROPERTY(EditDefaultsOnly, Category = "SystemLink|Shooting")
-	float WeaponBLockingTraceDistance = 30;
-
-private:
-	// Tracks if the weapon is blocked
-	bool bIsWeaponBlocked;
+	UFUNCTION(BlueprintCallable, Category = "Debug")
+	void DebugPrintScreen(const FString& Message, FColor Color = FColor::White, float Duration = 2.0f) const;
 };

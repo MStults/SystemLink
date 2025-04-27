@@ -13,7 +13,6 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnTakeDamage, float, CurrentHealth
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnOvershieldActivated, bool, bIsCharging);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnShieldRechargeStarted, float, RechargeDuration);
 
-
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class SYSTEMLINK_API UHealthComponent : public UActorComponent
 {
