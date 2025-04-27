@@ -1,68 +1,184 @@
 #include "SystemLinkWeaponComponent.h"
 
+#include "SystemLink.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
 
-USystemLinkWeaponComponent::USystemLinkWeaponComponent():
-	ImpactDecalMaterial(nullptr),
-	ImpactNiagaraEffect(nullptr), bIsWeaponBlocked(false)
+USystemLinkWeaponComponent::USystemLinkWeaponComponent()
 {
+	bIsWeaponBlocked = false;
+	WeaponBlockingTraceDistance = 30.0f; // Adjust as needed
 	PrimaryComponentTick.bCanEverTick = true; // Needed for weapon animations?
 	SwayRotation = FRotator::ZeroRotator;
 }
 
-void USystemLinkWeaponComponent::SpawnImpactDecal(const FHitResult& HitResult) const
+TArray<FHitResult> USystemLinkWeaponComponent::ExtractHitResults(const TArray<FConfirmedProjectileHit>& ConfirmedHits)
 {
-	if (!ImpactDecalMaterial) return;
+	TArray<FHitResult> OutHits;
+	OutHits.Reserve(ConfirmedHits.Num());
 
-	UGameplayStatics::SpawnDecalAtLocation(
-		GetWorld(),
-		ImpactDecalMaterial,
-		FVector(10.0f, 10.0f, 1.0f), // Decal Size
-		HitResult.ImpactPoint, // Spawn Location
-		HitResult.ImpactNormal.Rotation(), // Rotation based on surface
-		10.0f // Lifespan in seconds
-	);
+	for (const FConfirmedProjectileHit& Confirmed : ConfirmedHits)
+	{
+		OutHits.Add(Confirmed.Hit);
+	}
+
+	return OutHits;
 }
 
-void USystemLinkWeaponComponent::SpawnImpactEffect(const FHitResult& HitResult) const
+void USystemLinkWeaponComponent::LocalFire_Implementation(const FVector& StartLocation,	const FVector& EndLocation)
 {
-	if (!ImpactNiagaraEffect) return;
+	// DebugPrintScreen(TEXT("🔥 Entered LocalFire_Implementation"), FColor::Yellow, 3.0f);
+	if (!GetWorld() || !GetOwner()) return;
 
-	UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-		GetWorld(),
-		ImpactNiagaraEffect,
-		HitResult.ImpactPoint,
-		HitResult.ImpactNormal.Rotation()
-	);
+	// DebugPrintScreen(TEXT("📦 Generating bullet spread"));
+	// DebugPrintScreen(FString::Printf(TEXT("🧮 GenerateBulletSpread called")), FColor::Yellow);
+	// DebugPrintScreen(FString::Printf(TEXT("→ NumProjectiles: %d"), NumProjectiles), FColor::Yellow);
+	// DebugPrintScreen(FString::Printf(TEXT("→ ConeAngle: %f"), ConeAngle), FColor::Yellow);
+	
+	// Use your own spread method to calculate endpoints
+	TArray<FVector> BulletEndPoints;
+	GenerateBulletSpread(StartLocation, EndLocation, BulletEndPoints);
+	TArray<FHitResult> PredictedHits;
+
+	// DebugPrintScreen(FString::Printf(TEXT("🔫 Num EndPoints: %d"), BulletEndPoints.Num()), FColor::Cyan);
+
+	for (const FVector& BulletEnd : BulletEndPoints)
+	{
+		FHitResult Hit;
+		FCollisionQueryParams Params;
+		Params.AddIgnoredActor(GetOwner());
+
+		// Local prediction trace
+		GetWorld()->LineTraceSingleByChannel(Hit, StartLocation, BulletEnd, COLLISION_WEAPON, Params);
+
+		// Add to reconciliation list
+		ShotHistory.Add(FShotInfo(StartLocation, BulletEnd, GetWorld()->GetTimeSeconds()));		
+
+		if (Hit.bBlockingHit)
+		{
+			PredictedHits.Add(Hit);
+		}
+	}
+
+	if (PredictedHits.Num() > 0)
+    {
+    	OnProjectileHitPredicted(PredictedHits);
+    }
+	
+	// 🔁 Flush if threshold is reached
+	if (ShotHistory.Num() >= MaxUnvalidatedShots)
+	{
+		SendShotValidation();
+	}
+
+	if (!GetWorld()->GetTimerManager().IsTimerActive(ShotValidationTimerHandle))
+	{
+		GetWorld()->GetTimerManager().SetTimer(
+			ShotValidationTimerHandle,
+			this,
+			&USystemLinkWeaponComponent::SendShotValidation,
+			ShotValidationInterval,
+			false
+		);
+	}
+}
+
+void USystemLinkWeaponComponent::SendShotValidation()
+{
+	GetWorld()->GetTimerManager().ClearTimer(ShotValidationTimerHandle);
+	
+	if (ShotHistory.Num() > 0)
+	{
+		ServerValidateShots(ShotHistory);
+		ShotHistory.Empty();
+	}
+}
+
+void USystemLinkWeaponComponent::ServerValidateShots_Implementation(const TArray<FShotInfo>& Shots)
+{
+	MulticastPlayFireFX();
+
+	TArray<FConfirmedProjectileHit> ConfirmedHits;
+
+	for (const FShotInfo& Shot : Shots)
+	{
+		FHitResult Hit;
+		FCollisionQueryParams Params;
+		Params.AddIgnoredActor(GetOwner());
+
+		const FVector Start = Shot.StartLocation;
+		const FVector End = Shot.EndLocation;
+
+		// Try precise line trace first
+		bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Start, End, COLLISION_WEAPON, Params);
+
+		// If line trace fails, try sweep as fallback
+		if (!bHit)
+		{
+			FCollisionShape Sphere = FCollisionShape::MakeSphere(HitValidationSweepRadius);
+
+			bHit = GetWorld()->SweepSingleByChannel(
+				Hit,
+				Start,
+				End,
+				FQuat::Identity,
+				COLLISION_WEAPON,
+				Sphere,
+				Params
+			);
+		}
+
+		// Accept if either trace hit
+		if (bHit)
+		{
+			FConfirmedProjectileHit Confirmed;
+			Confirmed.Shot = Shot;
+			Confirmed.Hit = Hit;
+			ConfirmedHits.Add(Confirmed);
+		}
+	}
+
+	if (ConfirmedHits.Num() > 0)
+	{
+		// DebugPrintScreen(FString::Printf(TEXT("ConfirmedHits: %d"), ConfirmedHits.Num()), FColor::Orange);
+		OnProjectileHitConfirmed(ConfirmedHits);
+	}
+}
+
+bool USystemLinkWeaponComponent::ServerValidateShots_Validate(const TArray<FShotInfo>& Shots)
+{
+	return true; // or add basic validation later
+}
+
+void USystemLinkWeaponComponent::MulticastPlayFireFX_Implementation()
+{
+	OnMulticastPlayFireFX();
 }
 
 void USystemLinkWeaponComponent::GenerateBulletSpread(
 	const FVector& StartLocation,
 	const FVector& EndLocation,
-	const int32 NumPellets,
-	const float ConeAngle, TArray<FVector>& OutPelletEndPoints)
+	TArray<FVector>& OutProjectilesEndPoints)
 {
 	// Clear output array
-	OutPelletEndPoints.Empty();
-
+	OutProjectilesEndPoints.Empty();
+ 
 	// Calculate base direction
 	const FVector BaseDirection = (EndLocation - StartLocation).GetSafeNormal();
-
+ 
 	// Convert cone angle to radians
 	const float ConeAngleRad = FMath::DegreesToRadians(ConeAngle);
 
-	for (int32 i = 0; i < NumPellets; i++)
+	for (int32 i = 0; i < NumProjectiles; i++)  
 	{
 		// Generate a random direction within the cone
 		FVector SpreadDirection = UKismetMathLibrary::RandomUnitVectorInConeInRadians(BaseDirection, ConeAngleRad);
 
 		// Scale the spread vector to match the intended shot distance
-		const float TraceDistance = (EndLocation - StartLocation).Size();
 		FVector PelletEnd = StartLocation + (SpreadDirection * TraceDistance);
 
 		// Add to output array
-		OutPelletEndPoints.Add(PelletEnd);
+		OutProjectilesEndPoints.Add(PelletEnd);
 	}
 }
 
@@ -70,7 +186,6 @@ bool USystemLinkWeaponComponent::GetShotStartAndEnd(
 	const FVector& CameraLocation,
 	const FVector& CameraForwardVector,
 	const FName SocketName,
-	const float TraceDistance,
 	FVector& OutStartLocation,
 	FVector& OutEndLocation) const
 {
@@ -155,7 +270,7 @@ FRotator USystemLinkWeaponComponent::CalculateWeaponSway(const float LookX, cons
 bool USystemLinkWeaponComponent::CheckWeaponBlocking(const FVector& CameraLocation, const FVector& CameraForwardVector, const bool bDebug)
 {
 	const FVector TraceStart = CameraLocation;
-	const FVector TraceEnd = TraceStart + (CameraForwardVector * WeaponBLockingTraceDistance);
+	const FVector TraceEnd = TraceStart + (CameraForwardVector * WeaponBlockingTraceDistance);
 	constexpr float SphereRadius = 15.0f; // Adjust as needed
 
 	FCollisionQueryParams TraceParams(FName(TEXT("WeaponBlockTrace")), true, GetOwner());
@@ -183,3 +298,17 @@ bool USystemLinkWeaponComponent::CheckWeaponBlocking(const FVector& CameraLocati
 	bIsWeaponBlocked = bHit;
 	return bIsWeaponBlocked;
 }
+
+void USystemLinkWeaponComponent::DebugPrintScreen(const FString& Message, const FColor Color, const float Duration) const
+{
+	if (GEngine)
+	{
+		GEngine->AddOnScreenDebugMessage(
+			-1,
+			10,
+			Color,
+			Message
+		);
+	}
+}
+

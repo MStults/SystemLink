@@ -1,15 +1,49 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "WeaponSwaySettings.generated.h"
+#include "UObject/ObjectMacros.h"
+#include "WeaponTypes.generated.h"
+
+/** Struct for shot information used during prediction and reconciliation */
+/** Struct for shot information used during prediction and reconciliation */
+USTRUCT(BlueprintType)
+struct FShotInfo
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadWrite, Category = "SystemLink|Shooting")
+	FVector StartLocation = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, Category = "SystemLink|Shooting")
+	FVector EndLocation = FVector::ZeroVector;
+
+	UPROPERTY(BlueprintReadWrite, Category = "SystemLink|Shooting")
+	float Timestamp = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, Category = "SystemLink|Shooting")
+	FVector Direction = FVector::ForwardVector;
+
+	UPROPERTY(BlueprintReadOnly, Category = "SystemLink|Shooting")
+	FRotator Rotation = FRotator::ZeroRotator;
+
+	FShotInfo() {}
+
+	FShotInfo(const FVector& InStart, const FVector& InEnd, const float InTimestamp)
+		: StartLocation(InStart)
+		, EndLocation(InEnd)
+		, Timestamp(InTimestamp)
+	{
+		Direction = (EndLocation - StartLocation).GetSafeNormal();
+		Rotation = Direction.Rotation();
+	}
+};
 
 /** Struct to define weapon sway settings */
 USTRUCT(BlueprintType)
 struct FWeaponSwaySettings
 {
 	GENERATED_BODY()
-
-public:
+	
 	/** ===== General Sway Settings ===== */
 
 	/** How much the weapon sways based on input */
@@ -76,4 +110,32 @@ public:
 
 	/** ===== Constructor ===== */
 	FWeaponSwaySettings() {}
+};
+
+/** Struct for defining weapon spread settings */
+USTRUCT(BlueprintType)
+struct FWeaponSpreadSettings
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Spread")
+	float BaseConeAngle = 5.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Spread")
+	int32 NumPellets = 1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Spread")
+	float MaxRange = 10000.0f;
+};
+
+USTRUCT(BlueprintType)
+struct FConfirmedProjectileHit
+{
+	GENERATED_BODY()
+
+	UPROPERTY(BlueprintReadOnly)
+	FShotInfo Shot;
+
+	UPROPERTY(BlueprintReadOnly)
+	FHitResult Hit;
 };
