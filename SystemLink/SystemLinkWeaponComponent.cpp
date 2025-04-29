@@ -1,15 +1,57 @@
 #include "SystemLinkWeaponComponent.h"
 
 #include "SystemLink.h"
-#include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
+#include "Net/UnrealNetwork.h"
 
 USystemLinkWeaponComponent::USystemLinkWeaponComponent()
 {
+	SetIsReplicatedByDefault(true);
+	PrimaryComponentTick.bCanEverTick = false;
+	
 	bIsWeaponBlocked = false;
 	WeaponBlockingTraceDistance = 30.0f; // Adjust as needed
 	PrimaryComponentTick.bCanEverTick = true; // Needed for weapon animations?
 	SwayRotation = FRotator::ZeroRotator;
+}
+
+void USystemLinkWeaponComponent::BeginPlay()
+{
+	Super::BeginPlay();
+	if (LinkedWeaponComponent == nullptr && !WeaponName.IsNone())
+	{
+		if (const AActor* OwnerActor = GetOwner())
+		{
+			TArray<UActorComponent*> Components;
+			OwnerActor->GetComponents(StaticClass(), Components);
+
+			for (UActorComponent* Comp : Components)
+			{
+				if (USystemLinkWeaponComponent* WeaponComp = Cast<USystemLinkWeaponComponent>(Comp); WeaponComp &&
+					WeaponComp != this)
+				{
+					if (WeaponComp->WeaponName == this->WeaponName)
+					{
+						LinkedWeaponComponent = WeaponComp;
+						break;
+					}
+				}
+			}
+		}
+	}
+}
+
+void USystemLinkWeaponComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME(USystemLinkWeaponComponent, CurrentAmmo);
+	DOREPLIFETIME(USystemLinkWeaponComponent, ReserveAmmo);
+}
+
+void USystemLinkWeaponComponent::OnRep_CurrentAmmo()
+{
+	
 }
 
 TArray<FHitResult> USystemLinkWeaponComponent::ExtractHitResults(const TArray<FConfirmedProjectileHit>& ConfirmedHits)
@@ -96,6 +138,12 @@ void USystemLinkWeaponComponent::SendShotValidation()
 
 void USystemLinkWeaponComponent::ServerValidateShots_Implementation(const TArray<FShotInfo>& Shots)
 {
+	if (CurrentAmmo < AmmoPerShot)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Not enough ammo to fire!"));
+		return;
+	}
+	
 	MulticastPlayFireFX();
 
 	TArray<FConfirmedProjectileHit> ConfirmedHits;
@@ -134,15 +182,52 @@ void USystemLinkWeaponComponent::ServerValidateShots_Implementation(const TArray
 			FConfirmedProjectileHit Confirmed;
 			Confirmed.Shot = Shot;
 			Confirmed.Hit = Hit;
-			ConfirmedHits.Add(Confirmed);
+			ConfirmedHits.Add(Confirmed);			
 		}
 	}
 
-	if (ConfirmedHits.Num() > 0)
+	if (int const NumConfirmedHits = ConfirmedHits.Num(); NumConfirmedHits > 0)
 	{
+		const int NumOfRounds = FMath::CeilToInt(NumConfirmedHits / static_cast<float>(NumProjectiles));
+
+		ConsumeAmmo(NumOfRounds);
+		
 		// DebugPrintScreen(FString::Printf(TEXT("ConfirmedHits: %d"), ConfirmedHits.Num()), FColor::Orange);
 		OnProjectileHitConfirmed(ConfirmedHits);
 	}
+}
+
+void USystemLinkWeaponComponent::ConsumeAmmo(int NumOfRounds)
+{
+	CurrentAmmo -= NumOfRounds * AmmoPerShot;
+
+	if (CurrentAmmo < 0)
+	{
+		CurrentAmmo = 0; // Prevent negative ammo
+	}
+
+
+	// Sync with the linked component
+	if (LinkedWeaponComponent)
+	{
+		LinkedWeaponComponent->CurrentAmmo = this->CurrentAmmo;
+		LinkedWeaponComponent->OnRep_CurrentAmmo(); 
+	}
+
+	// Optional: Trigger replication manually if needed
+	
+	if (GetOwnerRole() == ROLE_Authority)
+	{
+		OnRep_CurrentAmmo();
+		Multicast_OnAmmoChanged(CurrentAmmo); 
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("Ammo Consumed: %d left"), CurrentAmmo);
+}
+
+void USystemLinkWeaponComponent::Multicast_OnAmmoChanged_Implementation(int32 NewAmmo)
+{
+	OnAmmoChanged(NewAmmo);
 }
 
 bool USystemLinkWeaponComponent::ServerValidateShots_Validate(const TArray<FShotInfo>& Shots)
@@ -223,9 +308,19 @@ bool USystemLinkWeaponComponent::GetShotStartAndEnd(
 	return bHit;
 }
 
+void USystemLinkWeaponComponent::SetSwayEnabled(bool bEnabled)
+{
+	SwaySettings.bIsSwayEnabled = bEnabled;
+}
+
 FRotator USystemLinkWeaponComponent::CalculateWeaponSway(const float LookX, const float LookY, const float DeltaTime,
                                                          const float PlayerSpeed)
 {
+	if (!SwaySettings.bIsSwayEnabled)
+	{
+		return FRotator::ZeroRotator; // No sway when disabled
+	}
+	
 	// Calculate target sway rotation from mouse/controller input
 	FRotator TargetRotation;
 	TargetRotation.Pitch = FMath::Clamp(LookY * -SwaySettings.SwayStrength, -SwaySettings.MaxPitch,

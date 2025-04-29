@@ -5,7 +5,6 @@
 #include "WeaponTypes.generated.h"
 
 /** Struct for shot information used during prediction and reconciliation */
-/** Struct for shot information used during prediction and reconciliation */
 USTRUCT(BlueprintType)
 struct FShotInfo
 {
@@ -45,6 +44,9 @@ struct FWeaponSwaySettings
 	GENERATED_BODY()
 	
 	/** ===== General Sway Settings ===== */
+
+	UPROPERTY(BlueprintReadWrite, Category = "Weapon|Sway")
+	bool bIsSwayEnabled = true;
 
 	/** How much the weapon sways based on input */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Sway | General")
