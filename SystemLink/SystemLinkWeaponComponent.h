@@ -5,6 +5,7 @@
 #include "WeaponTypes.h"
 #include "SystemLinkWeaponComponent.generated.h"
 
+
 UCLASS()
 class SYSTEMLINK_API USystemLinkWeaponComponent : public USkeletalMeshComponent
 {
@@ -16,6 +17,45 @@ class SYSTEMLINK_API USystemLinkWeaponComponent : public USkeletalMeshComponent
 public:
 	USystemLinkWeaponComponent();
 
+	virtual void BeginPlay() override;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Details")
+	FName WeaponName;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon Details")
+	USystemLinkWeaponComponent* LinkedWeaponComponent;
+
+	// Current ammo in the clip
+	UPROPERTY(ReplicatedUsing = OnRep_CurrentAmmo, BlueprintReadOnly, Category = "Weapon Details|Ammo")
+	int32 CurrentAmmo = 128;
+
+	UFUNCTION()
+	void OnRep_CurrentAmmo();
+
+	// Max ammo per clip
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Details|Ammo")
+	int32 MaxAmmo = 512;
+
+	// Total reserve ammo
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Weapon Details|Ammo")
+	int32 ReserveAmmo = 0;
+
+	// How much ammo this weapon consumes per shot
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Details|Ammo")
+	int32 AmmoPerShot = 1;
+
+	auto ConsumeAmmo(int NumOfRounds) -> void;
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "Weapon|Ammo")
+	void OnAmmoChanged(int32 NewAmmo);
+
+	UFUNCTION(NetMulticast, Reliable)
+	void Multicast_OnAmmoChanged(int32 NewAmmo);
+	void Multicast_OnAmmoChanged_Implementation(int32 NewAmmo);
+	
+	// UFUNCTION(BlueprintImplementableEvent, Category = "Weapon|Ammo")
+	// void OnAmmoChanged(int32 CurrentAmmo);
+	
 	// ============================
 	// === Weapon Multiplayer ===
 	// ============================
@@ -35,6 +75,9 @@ public:
 	/** Editable sway settings exposed to Blueprint */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon Details")
 	FWeaponSwaySettings SwaySettings;
+
+	UFUNCTION(BlueprintCallable, Category = "Weapon Details")
+	void SetSwayEnabled(bool bEnabled);
 
 	/** Maximum distance for checking if the weapon is blocked */
 	UPROPERTY(EditDefaultsOnly, Category = "Weapon Details")

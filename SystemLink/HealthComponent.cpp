@@ -4,17 +4,16 @@
 
 // Sets default values for this component's properties
 UHealthComponent::UHealthComponent()
-{
-	PrimaryComponentTick.bCanEverTick = false;
+{	 
 	SetIsReplicatedByDefault(true);
 
 	MaxHealth = 100.f;
 	Health = MaxHealth;
 
-	MaxShield = 50.f;
+	MaxShield = 50.f; 
 	Shield = MaxShield;
 
-	ShieldRechargeDelay = 3.0f;
+	ShieldRechargeDelay = 3.0f; 
 	ShieldRechargeRate = 10.0f;
 
 	bHasOvershield = false;
@@ -22,7 +21,7 @@ UHealthComponent::UHealthComponent()
 	OvershieldChargeRate = 20.0f; // 20 shields per second
 }
 
-// Called when the game starts
+// Called when the game starts 
 void UHealthComponent::BeginPlay()
 {
 	Super::BeginPlay();
