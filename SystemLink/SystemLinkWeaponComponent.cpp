@@ -147,25 +147,25 @@ void USystemLinkWeaponComponent::ServerValidateShots_Implementation(const TArray
 	MulticastPlayFireFX();
 
 	TArray<FConfirmedProjectileHit> ConfirmedHits;
-
+ 
 	for (const FShotInfo& Shot : Shots)
 	{
-		FHitResult Hit;
+		FHitResult Hit; 
 		FCollisionQueryParams Params;
 		Params.AddIgnoredActor(GetOwner());
 
 		const FVector Start = Shot.StartLocation;
-		const FVector End = Shot.EndLocation;
+		const FVector End = Shot.EndLocation; 
 
 		// Try precise line trace first
 		bool bHit = GetWorld()->LineTraceSingleByChannel(Hit, Start, End, COLLISION_WEAPON, Params);
-
+ 
 		// If line trace fails, try sweep as fallback
 		if (!bHit)
-		{
+		{ 
 			FCollisionShape Sphere = FCollisionShape::MakeSphere(HitValidationSweepRadius);
 
-			bHit = GetWorld()->SweepSingleByChannel(
+			bHit = GetWorld()->SweepSingleByChannel(  
 				Hit,
 				Start,
 				End,
