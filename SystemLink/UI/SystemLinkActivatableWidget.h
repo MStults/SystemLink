@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "CommonActivatableWidget.h"
+#include "CommonInputTypeEnum.h"
 #include "SystemLinkActivatableWidget.generated.h"
 
 /**
@@ -16,17 +17,9 @@ class SYSTEMLINK_API USystemLinkActivatableWidget : public UCommonActivatableWid
 	GENERATED_BODY()
 
 public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SystemLink|Focus")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SystemLink")
 	bool bAutoRestoreFocusOnGamepad = true;
-
-	// Assign your IMC asset in the BP derived from this class
-	UPROPERTY(EditDefaultsOnly, Category="Input|UI")
-	TObjectPtr<UInputMappingContext> IMC_UI;
-
-	// Higher priority beats gameplay contexts (tune as needed)
-	UPROPERTY(EditDefaultsOnly, Category="Input|UI")
-	int32 UIInputPriority = 100;
-	
+ 
 	/** Pushes the given widget class to the Menu stack via the UI Manager interface */
 	UFUNCTION(BlueprintCallable, Category = "SystemLink")
 	void PushToMenu(TSubclassOf<UCommonActivatableWidget> WidgetClass) const;
@@ -34,6 +27,21 @@ public:
 	/** Pushes the given widget class to the HUD stack via the UI Manager interface */
 	UFUNCTION(BlueprintCallable, Category = "SystemLink")
 	void PushToHud(TSubclassOf<UCommonActivatableWidget> WidgetClass) const;
+
+	UFUNCTION(BlueprintCallable, Category = "SystemLink")
+	void ShowModal(TSubclassOf<UCommonActivatableWidget> WidgetClass) const;
+
+	UFUNCTION(BlueprintImplementableEvent, Category = "SystemLink")
+	void OnLeftFaceButtonPressed();
+
+	UFUNCTION(BlueprintCallable, Category = "SystemLink")
+	void TriggerLeftFaceButtonPressed()
+	{
+		OnLeftFaceButtonPressed(); 
+	}
+
+	UFUNCTION()
+	void TryRestoreFocusIfNeeded() const;
 
 protected:
 	/** Handle activation logic (including input binding) */
@@ -44,15 +52,11 @@ protected:
 
 private:
 	UFUNCTION()
-	void HandleInputMethodChanged(ECommonInputType NewType) const;
-
-	UFUNCTION()
-	void TryRestoreFocusIfNeeded() const;
+	void HandleInputMethodChanged(ECommonInputType NewType) const;	
 
 	UFUNCTION()
 	void FocusDefaultTargetIfPossible() const;
 
-	FTimerHandle TimerHandle;
-	void StartTimer();
-	void ClearTimer();
+	UFUNCTION()
+	UCommonActivatableWidget* GetActiveWidget() const;
 };

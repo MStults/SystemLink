@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "Components/SkeletalMeshComponent.h"
-#include "WeaponTypes.h"
+#include "SystemLinkWeaponTypes.h"
 #include "SystemLinkWeaponComponent.generated.h"
 
 

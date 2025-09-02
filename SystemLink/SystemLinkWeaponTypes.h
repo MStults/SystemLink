@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "UObject/ObjectMacros.h"
-#include "WeaponTypes.generated.h"
+#include "SystemLinkWeaponTypes.generated.h"
 
 /** Struct for shot information used during prediction and reconciliation */
 USTRUCT(BlueprintType)
