@@ -3,11 +3,15 @@
 
 #include "SystemLinkPlayerController.h"
 
+#include "CommonInputSubsystem.h"
 #include "SystemLink.h"
 #include "UI/SystemLinkActivatableWidget.h"
+#include "UI/SystemLinkConfirmModal.h"
+#include "GameFramework/Pawn.h"
+#include "UI/SystemLinkConfirmAsyncAction.h"
 
-UCommonActivatableWidget* ASystemLinkPlayerController::PushToStack_Internal(
-	const TSubclassOf<class UCommonActivatableWidget>& WidgetClass, UCommonActivatableWidgetStack* Stack)
+USystemLinkActivatableWidget* ASystemLinkPlayerController::PushToStack_Internal(
+	const TSubclassOf<class USystemLinkActivatableWidget>& WidgetClass, UCommonActivatableWidgetStack* Stack)
 {
 	if (!Stack)
 	{
@@ -24,18 +28,26 @@ UCommonActivatableWidget* ASystemLinkPlayerController::PushToStack_Internal(
 	if (UCommonActivatableWidget* NewWidget = Stack->AddWidget(WidgetClass))
 	{
 		NewWidget->ActivateWidget();
-		UE_LOG(LogSystemLink, Warning, TEXT("ActivateWidget called!"));
-		return NewWidget;
+
+		USystemLinkActivatableWidget* SystemLinkActivatableWidget = Cast<USystemLinkActivatableWidget>(NewWidget);
+
+		if (!SystemLinkActivatableWidget)
+		{
+			checkf(false, TEXT("SystemLinkActivatableWidget was null in when pushing to stack."));
+			return nullptr;
+		}
+		
+		return SystemLinkActivatableWidget;
 	}
 
 	return nullptr;
 }
 
-UCommonActivatableWidget* ASystemLinkPlayerController::ShowWidget_Internal(
-	const TSubclassOf<class UCommonActivatableWidget>& WidgetClass, UCommonActivatableWidgetStack* Stack)
+USystemLinkActivatableWidget* ASystemLinkPlayerController::ShowWidget_Internal(
+	const TSubclassOf<class USystemLinkActivatableWidget>& WidgetClass, UCommonActivatableWidgetStack* Stack)
 {
 	// Focus logic
-	if (UCommonActivatableWidget* TopWidget = PushToStack_Internal(WidgetClass, Stack))
+	if (USystemLinkActivatableWidget* TopWidget = PushToStack_Internal(WidgetClass, Stack))
 	{
 		FInputModeGameAndUI InputMode;
 		InputMode.SetWidgetToFocus(TopWidget->TakeWidget());
@@ -65,64 +77,96 @@ UCommonActivatableWidget* ASystemLinkPlayerController::ShowWidget_Internal(
 	return nullptr;
 }
 
-void ASystemLinkPlayerController::BeginPlay()
+void ASystemLinkPlayerController::OnPossess(APawn* PossessPawn)
 {
-	Super::BeginPlay();
+	Super::OnPossess(PossessPawn);
 
-	// Create and add the UI root widget (that holds both stacks)
-	if (UIRootClass)
+	UIRoot = CreateWidget<USystemLinkUiRootContainer>(this, UIRootClass);
+
+	if (UIRoot)
 	{
-		UIRoot = CreateWidget<USystemLinkUiRootContainer>(this, UIRootClass);
-
-		if (UIRoot)
-		{
-			UIRoot->AddToViewport();
-			MenuStack = UIRoot->GetMenuStack();
-			HudStack = UIRoot->GetHudStack();
-			ModalStack = UIRoot->GetModalStack();
-			OnUIRootReady(UIRoot);
-			StartSystemLinkActivatableWidgetTimer();
-		}
+		UIRoot->AddToPlayerScreen();
+		MenuStack = UIRoot->GetMenuStack();
+		HudStack = UIRoot->GetHudStack();
+		ModalStack = UIRoot->GetModalStack();
+		OnUIRootReady(UIRoot);
+		StartSystemLinkActivatableWidgetTimer();
 	}
 }
 
-UCommonActivatableWidget* ASystemLinkPlayerController::PushToMenu_Implementation(
-	const TSubclassOf<UCommonActivatableWidget> WidgetClass)
+USystemLinkActivatableWidget* ASystemLinkPlayerController::PushToMenu(
+	const TSubclassOf<USystemLinkActivatableWidget> WidgetClass) const
 {
 	return PushToStack_Internal(WidgetClass, MenuStack);
 }
 
-UCommonActivatableWidget* ASystemLinkPlayerController::PushToHud_Implementation(
-	TSubclassOf<UCommonActivatableWidget> WidgetClass)
+USystemLinkActivatableWidget* ASystemLinkPlayerController::PushToHud(
+	const TSubclassOf<USystemLinkActivatableWidget> WidgetClass) const
 {
 	return PushToStack_Internal(WidgetClass, HudStack);
 }
 
-UCommonActivatableWidget* ASystemLinkPlayerController::ShowMenu_Implementation(
-	const TSubclassOf<UCommonActivatableWidget> WidgetClass)
+USystemLinkActivatableWidget* ASystemLinkPlayerController::ShowMenu(const TSubclassOf<USystemLinkActivatableWidget> WidgetClass)
 {
 	return ShowWidget_Internal(WidgetClass, MenuStack);
 }
 
-UCommonActivatableWidget* ASystemLinkPlayerController::ShowModal_Implementation(
-	const TSubclassOf<UCommonActivatableWidget> WidgetClass)
+USystemLinkActivatableWidget* ASystemLinkPlayerController::GetActiveWidget() const
 {
-	return ShowWidget_Internal(WidgetClass, ModalStack);
+	UCommonActivatableWidget* ActiveWidget;
+	
+	if (const auto ModalWidget = ModalStack->GetActiveWidget())
+	{
+		ActiveWidget = ModalWidget;
+	}
+	else if (const auto MenuWidget = MenuStack->GetActiveWidget())
+	{
+		ActiveWidget = MenuWidget;
+	}
+	else
+	{
+		ActiveWidget = HudStack->GetActiveWidget();
+	}
+
+	return Cast<USystemLinkActivatableWidget>(ActiveWidget);
 }
 
-UCommonActivatableWidget* ASystemLinkPlayerController::GetActiveWidget_Implementation() const
+void ASystemLinkPlayerController::ShowModal(
+	const EConfirmScreenType ConfirmScreenType,
+	const FText& InScreenTitle,
+	const FText& InScreenMsg,
+	const TFunction<void(EConfirmScreenButtonType)>& ButtonClickedCallback
+	) const
 {
-	if (UCommonActivatableWidget* Widget = ModalStack->GetActiveWidget())
-	{
-		return Widget;
-	}
+	const UConfirmScreenInfoObject* CreatedInfoObject = nullptr;
 	
-	if (UCommonActivatableWidget* Widget = MenuStack->GetActiveWidget())
-	{
-		return Widget;		
-	}
+	const TSubclassOf<USystemLinkConfirmModal> ConfirmModalClass =
+		ConfirmScreenType == EConfirmScreenType::Ok
+			? OkModalClass
+			: ConfirmScreenType == EConfirmScreenType::YesNo
+				? YesNoModalClass
+				: OkCancelModalClass;
 	
-	return HudStack->GetActiveWidget();
+	switch (ConfirmScreenType) {
+	case EConfirmScreenType::Ok:
+		CreatedInfoObject = UConfirmScreenInfoObject::CreateOKScreen(InScreenTitle,InScreenMsg);
+		break;
+	case EConfirmScreenType::YesNo:
+		CreatedInfoObject = UConfirmScreenInfoObject::CreateYesNoScreen(InScreenTitle,InScreenMsg);
+		break;
+	case EConfirmScreenType::OkCancel:
+		CreatedInfoObject = UConfirmScreenInfoObject::CreateOkCancelScreen(InScreenTitle,InScreenMsg);
+		break;
+	case EConfirmScreenType::Unknown:
+		break;
+	}
+
+	ModalStack->ClearWidgets();
+	if (UCommonActivatableWidget* ActivatableWidget = ModalStack->AddWidget(ConfirmModalClass))
+	{
+		USystemLinkConfirmModal* CreatedConfirmScreen = CastChecked<USystemLinkConfirmModal>(ActivatableWidget);
+		CreatedConfirmScreen->InitConfirmScreen(CreatedInfoObject,ButtonClickedCallback);
+	}	
 }
 
 /**
@@ -137,25 +181,28 @@ UCommonActivatableWidget* ASystemLinkPlayerController::GetActiveWidget_Implement
  */
 void ASystemLinkPlayerController::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	ClearSystemLinkActivatableWidgetTimer();
+	ClearSystemLinkActivatableWidgetTimer();	
+	
+#if WITH_EDITOR
+	// Make the editor cursor safe before we die
+	if (IsLocalController())
+	{
+		if (const ULocalPlayer* LocalPlayer = GetLocalPlayer())
+		{
+			if (UCommonInputSubsystem* InputSubsystem = LocalPlayer->GetSubsystem<UCommonInputSubsystem>())
+			{
+				InputSubsystem->SetCurrentInputType(ECommonInputType::MouseAndKeyboard);
+			}
+		}
+	}
+#endif
 
 	Super::EndPlay(EndPlayReason);
-	
-	// make the editor cursor safe before we die
-	bShowMouseCursor = true;
-	
-	FInputModeGameAndUI InputMode;
-	InputMode.SetLockMouseToViewportBehavior(EMouseLockMode::DoNotLock);
-	InputMode.SetHideCursorDuringCapture(false);
-	SetInputMode(InputMode);
-
-	bEnableClickEvents = true;
-	bEnableMouseOverEvents = true;	
 }
 
 void ASystemLinkPlayerController::TryRestoreFocusIfNeeded() const
 {
-	if (const auto ActiveWidget = GetActiveWidget_Implementation())
+	if (const auto ActiveWidget = GetActiveWidget())
 	{
 		// Check and cast ActiveWidget as USystemLinkActivatableWidget
 		if (const auto SystemLinkWidget = Cast<USystemLinkActivatableWidget>(ActiveWidget))

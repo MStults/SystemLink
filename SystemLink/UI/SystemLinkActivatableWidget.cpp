@@ -1,13 +1,13 @@
 #include "SystemLinkActivatableWidget.h"
 
 #include "CommonButtonBase.h"
-#include "SystemLinkUiManagerInterface.h"
 #include "CommonInputSubsystem.h"
 #include "Engine/LocalPlayer.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/Widget.h"
 #include "Framework/Application/SlateApplication.h"
 #include "SystemLink/SystemLink.h"
+#include "SystemLink/SystemLinkPlayerController.h"
 
 namespace
 {
@@ -68,37 +68,52 @@ void USystemLinkActivatableWidget::NativeOnDeactivated()
 	Super::NativeOnDeactivated();
 }
 
-void USystemLinkActivatableWidget::PushToMenu(const TSubclassOf<UCommonActivatableWidget> WidgetClass) const
+USystemLinkActivatableWidget* USystemLinkActivatableWidget::PushToMenu(const TSubclassOf<USystemLinkActivatableWidget> WidgetClass)
 {
-	if (APlayerController* PC = GetOwningPlayer())
+	if (!WidgetClass)
 	{
-		if (PC->GetClass()->ImplementsInterface(USystemLinkUiManagerInterface::StaticClass()))
-		{
-			ISystemLinkUiManagerInterface::Execute_PushToMenu(PC, WidgetClass);
-		}
+		UE_LOG(LogSystemLink, Error, TEXT("PushToMenu: WidgetClass is null, cannot push."));
+		return nullptr;
 	}
+
+	const ASystemLinkPlayerController* SystemLinkPC = GetSystemLinkPlayerController();
+	if (!SystemLinkPC)
+	{
+		UE_LOG(LogSystemLink, Error, TEXT("PushToMenu: SystemLinkPlayerController is null!"));
+		return nullptr;
+	}
+
+	USystemLinkActivatableWidget* Result = SystemLinkPC->PushToMenu(WidgetClass);
+	if (!Result)
+	{
+		UE_LOG(LogSystemLink, Warning, TEXT("PushToMenu: Failed to push widget to Menu stack (WidgetClass: %s)."), *WidgetClass->GetName());
+	}
+
+	return Result;
 }
 
-void USystemLinkActivatableWidget::PushToHud(const TSubclassOf<UCommonActivatableWidget> WidgetClass) const
-{
-	if (APlayerController* PC = GetOwningPlayer())
+USystemLinkActivatableWidget* USystemLinkActivatableWidget::PushToHud(const TSubclassOf<USystemLinkActivatableWidget> WidgetClass)
+{	
+	if (!WidgetClass)
 	{
-		if (PC->GetClass()->ImplementsInterface(USystemLinkUiManagerInterface::StaticClass()))
-		{
-			ISystemLinkUiManagerInterface::Execute_PushToHud(PC, WidgetClass);
-		}
+		UE_LOG(LogSystemLink, Error, TEXT("PushToHud: WidgetClass is null, cannot push."));
+		return nullptr;
 	}
-}
 
-void USystemLinkActivatableWidget::ShowModal(TSubclassOf<UCommonActivatableWidget> WidgetClass) const
-{
-	if (APlayerController* PC = GetOwningPlayer())
+	const ASystemLinkPlayerController* SystemLinkPC = GetSystemLinkPlayerController();
+	if (!SystemLinkPC)
 	{
-		if (PC->GetClass()->ImplementsInterface(USystemLinkUiManagerInterface::StaticClass()))
-		{
-			ISystemLinkUiManagerInterface::Execute_ShowModal(PC, WidgetClass);
-		}
+		UE_LOG(LogSystemLink, Error, TEXT("PushToHud: SystemLinkPlayerController is null!"));
+		return nullptr;
 	}
+
+	USystemLinkActivatableWidget* Result = SystemLinkPC->PushToHud(WidgetClass);
+	if (!Result)
+	{
+		UE_LOG(LogSystemLink, Warning, TEXT("PushToHud: Failed to push widget to HUD stack (WidgetClass: %s)."), *WidgetClass->GetName());
+	}
+
+	return Result;
 }
 
 void USystemLinkActivatableWidget::HandleInputMethodChanged(const ECommonInputType NewType) const
@@ -108,6 +123,23 @@ void USystemLinkActivatableWidget::HandleInputMethodChanged(const ECommonInputTy
 	{
 		TryRestoreFocusIfNeeded();
 	}
+}
+
+ASystemLinkPlayerController* USystemLinkActivatableWidget::GetSystemLinkPlayerController() const
+{
+	// Get the owning player
+	APlayerController* PC = GetOwningPlayer();
+	
+	// Cast to SystemLinkPlayerController
+	ASystemLinkPlayerController* SystemLinkPC = Cast<ASystemLinkPlayerController>(PC);
+
+	if (!SystemLinkPC)
+	{
+		ensureMsgf(false, TEXT("Failed to cast Owning Player to ASystemLinkPlayerController."));
+		return nullptr;
+	}
+
+	return SystemLinkPC;
 }
 
 void USystemLinkActivatableWidget::TryRestoreFocusIfNeeded() const
@@ -185,14 +217,15 @@ void USystemLinkActivatableWidget::FocusDefaultTargetIfPossible() const
 }
 
 UCommonActivatableWidget* USystemLinkActivatableWidget::GetActiveWidget() const
-{
-	if (APlayerController* PC = GetOwningPlayer())
-	{   
-		if (PC->Implements<USystemLinkUiManagerInterface>())
-		{
-			return ISystemLinkUiManagerInterface::Execute_GetActiveWidget(PC);
-
-		}
+{	
+	// Cast to SystemLinkPlayerController
+	const ASystemLinkPlayerController* SystemLinkPC = GetSystemLinkPlayerController();
+	if (!SystemLinkPC)
+	{
+		UE_LOG(LogSystemLink, Warning, TEXT("Owning Player is not ASystemLinkPlayerController."));
+		return nullptr;
 	}
-	return nullptr;
+	
+	// Return the active widget
+	return SystemLinkPC->GetActiveWidget();	
 }

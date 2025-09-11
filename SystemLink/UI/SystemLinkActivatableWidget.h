@@ -7,11 +7,12 @@
 #include "CommonInputTypeEnum.h"
 #include "SystemLinkActivatableWidget.generated.h"
 
+class ASystemLinkPlayerController;
 /**
  * A widget specifically designed to integrate with the SystemLink UI architecture.
  * Provides functionality to manage activatable widgets within the UI Manager.
  */
-UCLASS()
+UCLASS(Blueprintable, BlueprintType, meta=(DisableNaiveTick))
 class SYSTEMLINK_API USystemLinkActivatableWidget : public UCommonActivatableWidget
 {
 	GENERATED_BODY()
@@ -22,14 +23,11 @@ public:
  
 	/** Pushes the given widget class to the Menu stack via the UI Manager interface */
 	UFUNCTION(BlueprintCallable, Category = "SystemLink")
-	void PushToMenu(TSubclassOf<UCommonActivatableWidget> WidgetClass) const;
+	USystemLinkActivatableWidget* PushToMenu(TSubclassOf<USystemLinkActivatableWidget> WidgetClass);
 	
 	/** Pushes the given widget class to the HUD stack via the UI Manager interface */
 	UFUNCTION(BlueprintCallable, Category = "SystemLink")
-	void PushToHud(TSubclassOf<UCommonActivatableWidget> WidgetClass) const;
-
-	UFUNCTION(BlueprintCallable, Category = "SystemLink")
-	void ShowModal(TSubclassOf<UCommonActivatableWidget> WidgetClass) const;
+	USystemLinkActivatableWidget* PushToHud(TSubclassOf<USystemLinkActivatableWidget> WidgetClass);
 
 	UFUNCTION(BlueprintImplementableEvent, Category = "SystemLink")
 	void OnLeftFaceButtonPressed();
@@ -39,6 +37,9 @@ public:
 	{
 		OnLeftFaceButtonPressed(); 
 	}
+
+	UFUNCTION(BlueprintCallable, Category = "SystemLink")
+	ASystemLinkPlayerController* GetSystemLinkPlayerController() const;
 
 	UFUNCTION()
 	void TryRestoreFocusIfNeeded() const;
@@ -58,5 +59,5 @@ private:
 	void FocusDefaultTargetIfPossible() const;
 
 	UFUNCTION()
-	UCommonActivatableWidget* GetActiveWidget() const;
+	UCommonActivatableWidget* GetActiveWidget() const;	
 };

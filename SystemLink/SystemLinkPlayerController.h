@@ -4,19 +4,21 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
-#include "CommonActivatableWidget.h"
 #include "CommonUI/Public/Widgets/CommonActivatableWidgetContainer.h"
-#include "UI/SystemLinkUiManagerInterface.h"
+#include "UI/SystemLinkConfirmModal.h"
 #include "UI/SystemLinkUiRootContainer.h"
+#include "UI/SystemLinkUITypes.h"
 #include "SystemLinkPlayerController.generated.h"
 
+class USystemLinkConfirmAsyncAction;
+class USystemLinkActivatableWidget;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
-		FOnButtonDescriptionTextUpdatedDelegate,
-		USystemLinkButtonBase*,
-		BroadcastingButton,
-		FText,
-		DescriptionText
-	);
+	FOnButtonDescriptionTextUpdatedDelegate,
+	USystemLinkButtonBase*,
+	BroadcastingButton,
+	FText,
+	DescriptionText
+);
 
 /**
  * @class ASystemLinkPlayerController
@@ -26,24 +28,30 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
  * for handling the user interface (UI) stack for both the menu and Heads-Up Display (HUD). It manages
  * the instantiation, addition, and activation of UI widgets for menus and HUD elements.
  */
-UCLASS()
-class SYSTEMLINK_API ASystemLinkPlayerController : public APlayerController, public ISystemLinkUiManagerInterface
+UCLASS(Abstract, BlueprintType, meta=(DisableNaiveTick))
+class SYSTEMLINK_API ASystemLinkPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 
-	static UCommonActivatableWidget* PushToStack_Internal(const TSubclassOf<class UCommonActivatableWidget>& WidgetClass, UCommonActivatableWidgetStack* Stack);
-	UCommonActivatableWidget* ShowWidget_Internal(const TSubclassOf<class UCommonActivatableWidget>& WidgetClass, UCommonActivatableWidgetStack* Stack);
+	static USystemLinkActivatableWidget* PushToStack_Internal(const TSubclassOf<class USystemLinkActivatableWidget>& WidgetClass, UCommonActivatableWidgetStack* Stack);
+	USystemLinkActivatableWidget* ShowWidget_Internal(const TSubclassOf<class USystemLinkActivatableWidget>& WidgetClass, UCommonActivatableWidgetStack* Stack);
 
 public: 
-	virtual void BeginPlay() override;
+	virtual void OnPossess(APawn* PossessPawn) override;
 
-	// Interface overrides
-	virtual UCommonActivatableWidget*  PushToMenu_Implementation(TSubclassOf<UCommonActivatableWidget> WidgetClass) override;
-	virtual UCommonActivatableWidget*  PushToHud_Implementation(TSubclassOf<UCommonActivatableWidget> WidgetClass) override;
-	virtual UCommonActivatableWidget*  ShowMenu_Implementation(TSubclassOf<UCommonActivatableWidget> WidgetClass) override;
-	virtual UCommonActivatableWidget*  ShowModal_Implementation(TSubclassOf<UCommonActivatableWidget> WidgetClass) override;
+	//UFUNCTION(BlueprintCallable, Category = "SystemLink")
+	USystemLinkActivatableWidget* PushToMenu(const TSubclassOf<USystemLinkActivatableWidget> WidgetClass) const;
 
-	virtual UCommonActivatableWidget*  GetActiveWidget_Implementation() const override;
+	//UFUNCTION(BlueprintCallable, Category = "SystemLink")
+	USystemLinkActivatableWidget* PushToHud(const TSubclassOf<USystemLinkActivatableWidget> WidgetClass) const;
+
+	UFUNCTION(BlueprintCallable, Category = "SystemLink")
+	USystemLinkActivatableWidget* ShowMenu(const TSubclassOf<USystemLinkActivatableWidget> WidgetClass);
+
+	UFUNCTION(BlueprintCallable, Category = "SystemLink")
+	USystemLinkActivatableWidget* GetActiveWidget() const; 
+
+	void ShowModal(EConfirmScreenType ConfirmScreenType, const FText& InScreenTitle,const FText& InScreenMsg, const TFunction<void(EConfirmScreenButtonType)>& ButtonClickedCallback) const;
 
 	/**
 	 * @brief Event triggered when the UI root container is ready for interaction.
@@ -63,9 +71,18 @@ public:
 	FOnButtonDescriptionTextUpdatedDelegate OnButtonDescriptionTextUpdated;
 
 protected:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "UI")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SystemLink")
 	TSubclassOf<class USystemLinkUiRootContainer> UIRootClass;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SystemLink")
+	TSubclassOf<USystemLinkConfirmModal> YesNoModalClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SystemLink")
+	TSubclassOf<USystemLinkConfirmModal> OkCancelModalClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SystemLink")
+	TSubclassOf<USystemLinkConfirmModal> OkModalClass;
+	
 	UPROPERTY(BlueprintReadOnly)
 	TObjectPtr<UCommonActivatableWidgetStack> MenuStack;
  
