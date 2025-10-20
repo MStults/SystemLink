@@ -36,7 +36,7 @@ void USystemLinkActivatableWidget::NativeOnActivated()
 {
 	Super::NativeOnActivated();
 
-	UE_LOG(LogSystemLink, Warning, TEXT("-{{{ Activated }}}-"));
+	// UE_LOG(LogSystemLink, Warning, TEXT("-{{{ Activated }}}-"));
 
 	// Bind input method change handling
 	if (const ULocalPlayer* Lp = GetOwningLocalPlayer())
@@ -52,7 +52,7 @@ void USystemLinkActivatableWidget::NativeOnActivated()
 
 void USystemLinkActivatableWidget::NativeOnDeactivated()
 {
-	UE_LOG(LogSystemLink, Warning, TEXT("-{{{ DEActivated }}}-"));
+	// UE_LOG(LogSystemLink, Warning, TEXT("-{{{ DEActivated }}}-"));
 	
 	// Unbind input method changes
 	if (const ULocalPlayer* Lp = GetOwningLocalPlayer())

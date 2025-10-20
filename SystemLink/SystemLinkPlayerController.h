@@ -14,7 +14,7 @@ class USystemLinkConfirmAsyncAction;
 class USystemLinkActivatableWidget;
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
 	FOnButtonDescriptionTextUpdatedDelegate,
-	USystemLinkButtonBase*,
+	UCommonButtonBase*,
 	BroadcastingButton,
 	FText,
 	DescriptionText

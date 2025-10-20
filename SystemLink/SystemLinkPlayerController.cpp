@@ -58,16 +58,16 @@ USystemLinkActivatableWidget* ASystemLinkPlayerController::ShowWidget_Internal(
 		bShowMouseCursor = true;
 
 		FString DebugStr = GetCurrentInputModeDebugString();
-		UE_LOG(LogTemp, Log, TEXT("Current Input Mode: %s"), *DebugStr);
+		// UE_LOG(LogSystemLink, Log, TEXT("Current Input Mode: %s"), *DebugStr);
 
 		if (const auto SystemLinkWidget = Cast<USystemLinkActivatableWidget>(TopWidget))
 		{
 			// Call TryRestoreFocusIfNeeded on the specific SystemLinkWidget
 			SystemLinkWidget->TryRestoreFocusIfNeeded();
-			UE_LOG(LogSystemLink, Warning, TEXT("SystemLinkActivatableWidget TryRestoreFocusIfNeeded called!"));
+			// UE_LOG(LogSystemLink, Warning, TEXT("SystemLinkActivatableWidget TryRestoreFocusIfNeeded called!"));
 		} else
 		{
-			UE_LOG(LogSystemLink, Warning, TEXT("Top widget is not a SystemLinkActivatableWidget!"));
+			// UE_LOG(LogSystemLink, Warning, TEXT("Top widget is not a SystemLinkActivatableWidget!"));
 			TopWidget->SetFocus();
 		}
 
@@ -78,7 +78,7 @@ USystemLinkActivatableWidget* ASystemLinkPlayerController::ShowWidget_Internal(
 }
 
 void ASystemLinkPlayerController::OnPossess(APawn* PossessPawn)
-{
+{	
 	Super::OnPossess(PossessPawn);
 
 	UIRoot = CreateWidget<USystemLinkUiRootContainer>(this, UIRootClass);
@@ -214,7 +214,7 @@ void ASystemLinkPlayerController::TryRestoreFocusIfNeeded() const
 }
 
 void ASystemLinkPlayerController::StartSystemLinkActivatableWidgetTimer()
-{
+{	
 	// Make sure this runs in a valid world context
 	if (GetWorld() && !GetWorld()->GetTimerManager().IsTimerActive(SystemLinkActivatableWidgetTimerHandle))
 	{
@@ -222,7 +222,7 @@ void ASystemLinkPlayerController::StartSystemLinkActivatableWidgetTimer()
 			SystemLinkActivatableWidgetTimerHandle,               
 			this,                     
 			&ASystemLinkPlayerController::TryRestoreFocusIfNeeded,
-			0.2f,                      
+			0.25f,                      
 			true                        
 		);
 	}
