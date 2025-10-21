@@ -9,6 +9,8 @@
 class USystemLinkTabListWidgetBase;
 class USystemLinkOptionsItemRegistry;
 class USystemLinkListItemBase;
+class USystemLinkListView;
+
 /**
  * @class USystemLinkOptionsScreen
  * @brief A system link options screen widget that extends USystemLinkActivatableWidget.
@@ -40,6 +42,9 @@ private:
 	//***** Bound Widgets ***** //
 	UPROPERTY(meta = (BindWidget))
 	USystemLinkTabListWidgetBase* TabListWidget_OptionsTabs;
+
+	UPROPERTY(meta = (BindWidget))
+	USystemLinkListView* ListView_OptionsList;
 	//***** Bound Widgets ***** //
 	
 	//Handle the creation of data in the option screen. Direct access to this variable is forbidden

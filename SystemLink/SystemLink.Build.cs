@@ -10,8 +10,10 @@ public class SystemLink : ModuleRules
 
 		PublicDependencyModuleNames.AddRange(new string[]
 		{
-			"Core", "CoreUObject", "Engine", "InputCore", "EnhancedInput", "Niagara", "SlateCore", "Slate", "CommonUI", "UMG", "CommonInput", "GameplayTags"
+			"Core", "CoreUObject", "Engine", "InputCore", 
+			"EnhancedInput", "Niagara", "SlateCore", 
+			"Slate", "CommonUI", "UMG", "CommonInput", 
+			"GameplayTags"
 		});
-
 	}
 }
